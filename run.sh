@@ -3,6 +3,7 @@
 ## Erlc flags to be used in each case:
 HIPE_FLAGS="+native +'{hipe,[{regalloc,coalescing},o2]}'"
 ERLLVM_FLAGS="+native +'{hipe,[o2,to_llvm]}'"
+JIT_FLAGS=""
 
 ## All arguments are made globals:
 ACTION=      # The run function to be executed (run_all, run_class)
@@ -12,6 +13,7 @@ CLASS=       # The class of benchmarks to be executed
 BENCH=       # The name of the benchmark to be executed
 ITERATIONS=2 # Number of executions of benchmarks to collect statistics
 DEBUG=0      # Debug mode (0=Off, 1=On)
+JIT_PATH="/home/konstantinos/Desktop/University/Thesis/erlang_jit/ebin"
 
 run_all ()
 {
@@ -103,9 +105,14 @@ run_benchmark ()
     echo "   --- $BENCH"
 
     EBIN_DIRS=`find ebin/ -maxdepth 1 -mindepth 1 -type d`
+    JIT_EBIN_DIRS=`find ${JIT_PATH}/ -maxdepth 1 -mindepth 1 -type d`
 
-    $OTP/bin/erl -pa ebin/ $EBIN_DIRS -noshell -s run_benchmark run \
+    PRELOADED_DIR=$OTP/erts/preloaded/ebin
+
+
+    $OTP/bin/erl +d -pa ebin/ $JIT_EBIN_DIRS $EBIN_DIRS $JIT_PATH $PRELOADED_DIR -noshell -s run_benchmark run \
         $BENCH $COMP $ITERATIONS -s erlang halt
+
 }
 
 collect_results ()
@@ -115,7 +122,7 @@ collect_results ()
     echo "### Benchmark BEAM/ErLLVM HiPE/ErLLVM BEAM HiPE ErLLVM (secs)" \
         > results/runtime.res
     pr -m -t results/runtime_beam.res results/runtime_hipe.res \
-        results/runtime_erllvm.res \
+        results/runtime_jit.res \
         | gawk '{print $1 "\t" $2/$6 "\t" $4/$6 "\t\t" $2 "\t" $4 "\t" $6}' \
         >> results/runtime.res
     ## Print average performance results of current execution:
@@ -125,7 +132,7 @@ collect_results ()
     echo "### Standard deviation BEAM HiPE ErLLVM (millisecs)" \
         > results/runtime-err.res
     pr -m -t results/runtime_beam-err.res results/runtime_hipe-err.res \
-        results/runtime_erllvm-err.res \
+        results/runtime_jit-err.res \
         | gawk '{print $1 "\t" $2 "\t" $4 "\t" $6}' \
         >> results/runtime-err.res
 }
@@ -239,11 +246,12 @@ main ()
   OTP          = $OTP_ROOT
   HiPE_FLAGS   = $HIPE_FLAGS
   ErLLVM_FLAGS = $ERLLVM_FLAGS
+  JIT_FLAGS    = $JIT_FLAGS
 EOF
     fi
 
     echo "Executing $ITERATIONS iterations/benchmark."
-    for COMP in "beam" "hipe" "erllvm"; do
+    for COMP in "jit" "beam" "hipe"; do
         ## Remove intermediate files from un-completed former run
         if [ -r results/runtime_$COMP.res ]; then
           rm results/runtime_$COMP.res
@@ -258,16 +266,17 @@ EOF
         if [ "$COMP" = "hipe" ]; then
             ERL_CFLAGS=$HIPE_FLAGS
         fi
-        if [ "$COMP" = "erllvm" ]; then
-            ERL_CFLAGS=$ERLLVM_FLAGS
+        if [ "$COMP" = "jit" ]; then
+            ERL_CFLAGS=$JIT_FLAGS
         fi
-        make ERLC=$OTP_ROOT/otp_$COMP/bin/erlc ERL_COMPILE_FLAGS="$ERL_CFLAGS" \
+        make ERLC=erlc ERL_COMPILE_FLAGS="$ERL_CFLAGS" \
             > /dev/null 2>&1 &
         spinner $(pidof make)
 
         ## Proper run
         echo "  Running $COMP..."
-        OTP=$OTP_ROOT/otp_$COMP
+        OTP=/home/konstantinos/Desktop/University/thesis_source_code/otp/
+        # OTP=/usr/lib/erlang/
         $ACTION
     done
 
@@ -279,7 +288,7 @@ EOF
 
     ## Backup all result files & diagrams to unique .res files:
     NEW_SUFFIX=`date +"%y.%m.%d-%H:%M:%S"`
-    for c in "" "_beam" "_hipe" "_erllvm"; do
+    for c in "" "_beam" "_hipe" "_jit"; do
         mv results/runtime$c.res results/runtime$c-$NEW_SUFFIX.res
         mv results/runtime$c-err.res results/runtime$c-err-$NEW_SUFFIX.res
     done;

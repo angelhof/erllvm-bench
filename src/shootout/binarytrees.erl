@@ -31,7 +31,7 @@ main(Arg) ->
 
    exit(ok).
 
-
+-spec depthLoop()
 depthLoop(D,M) when D > M -> ok;
 depthLoop(D,M) -> 
    N = 1 bsl (M-D + ?Min),
@@ -39,13 +39,16 @@ depthLoop(D,M) ->
       [ 2*N, D, sumLoop(N,D,0) ]),
    depthLoop (D+2,M).
 
+-spec sumLoop(integer(), integer(), integer()) -> integer().
 sumLoop(0,_,Sum) -> Sum;
 sumLoop(N,D,Sum) -> 
    sumLoop(N-1,D, Sum + itemCheck(bottomUp(N,D)) + itemCheck(bottomUp(-1*N,D))).
 
+-spec bottomUp(integer(), integer()) -> {integer(), any(), any()}.
 bottomUp(I,0) -> {I, nil, nil};
 bottomUp(I,D) -> {I, bottomUp(2*I-1,D-1), bottomUp(2*I,D-1)}.
 
+-spec itemCheck('nil' | {integer(), any(), any()}) -> integer().
 itemCheck(nil) -> 0;
 itemCheck({I,Left,Right}) -> 
    I + itemCheck(Left) - itemCheck(Right).

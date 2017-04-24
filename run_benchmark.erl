@@ -20,7 +20,7 @@ bench_file(File, Comp, N) ->
       end;
     _ -> ok
   end,
-  T = run_bench(File, N),
+  T = run_bench(File, Comp, N),
   %% Write results/errors to files:
   ResFile = lists:concat(["results/runtime_", Comp, ".res"]),
   file:write_file(ResFile, io_lib:fwrite("~w\t~.3f\n", [File, T#stat.median])
@@ -29,7 +29,7 @@ bench_file(File, Comp, N) ->
   file:write_file(ErrFile, io_lib:fwrite("~w\t~.3f\n", [File, T#stat.stddev])
                   , [append]).
 
-run_bench(File, N) when is_integer(N) ->
+run_bench(File, Comp, N) when is_integer(N) ->
   Myself = self(),
   Opts = [], %[{min_heap_size, 100000000}],
   Size = medium,
@@ -39,6 +39,12 @@ run_bench(File, N) when is_integer(N) ->
       true -> File:Size();
       false -> []
     end,
+  case Comp of
+    jit -> 
+      spawn(controller, main, []);
+    _ ->
+      ok
+  end,
   spawn_opt(fun () ->
                 %% Supress IO
                 {ok, F} = file:open("io_file", [write]),
@@ -56,5 +62,5 @@ run_bench(File, N) when is_integer(N) ->
                 file:close(F)
             end, Opts),
   receive
-    Result -> Result
+    Result -> catch Result
   end.
